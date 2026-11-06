@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Corre lint, typecheck, tests y build en cada carpeta que tenga un package.json.
+      # Si todavía no hay ninguno, pasa sin hacer nada.
+      - name: Revisar cada proyecto
+        run: |
+          set -e
+          dirs=$(git ls-files '*package.json' | grep -v node_modules | xargs -r -n1 dirname | sort -u)
+          if [ -z "$dirs" ]; then
+            echo "Todavía no hay proyectos con package.json."
+            exit 0
+          fi
+          for d in $dirs; do
+            echo "::group::$d"
+            cd "$GITHUB_WORKSPACE/$d"
+            if [ -f package-lock.json ]; then npm ci; else npm install; fi
+            npm run lint --if-present
+            npm run typecheck --if-present
+            npm test --if-present
+            npm run build --if-present
+            echo "::endgroup::"
+          done
